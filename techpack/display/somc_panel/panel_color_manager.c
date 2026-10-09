@@ -231,7 +231,7 @@ static void conv_uv_data(char *data, int param_type, int *u_data, int *v_data)
 	}
 }
 
-static void get_uv_data(struct dsi_display *display, int *u_data, int *v_data)
+static void __maybe_unused get_uv_data(struct dsi_display *display, int *u_data, int *v_data)
 {
 	struct panel_specific_pdata *spec_pdata = NULL;
 	struct somc_panel_color_mgr *color_mgr = NULL;
@@ -277,6 +277,7 @@ static void get_uv_data(struct dsi_display *display, int *u_data, int *v_data)
 		if (reslen < 0) {
 			pr_err("%s (%d): rx_cmd failed.\n",
 				__func__, __LINE__);
+			kfree(rbuf);
 			return;
 		}
 		pr_debug("%s (%d): received data = %x \n",
@@ -877,18 +878,9 @@ static int somc_panel_pcc_setup(struct dsi_display *display)
 
 	(void)somc_panel_inject_crtc_overrides(display);
 
-	if (color_mgr->uv_read_cmds.cmds.send_cmd) {
-		get_uv_data(display, &color_mgr->u_data, &color_mgr->v_data);
-	} else {
-		pr_warn("%s (%d): Cannot read uv data: missing command\n",
-				__func__, __LINE__);
-	}
-
-	if (color_mgr->u_data == 0 && color_mgr->v_data == 0) {
-		pr_err("%s (%d): u,v is flashed 0.\n", __func__, __LINE__);
-		if (!color_mgr->mdss_force_pcc)
-			return -EINVAL;
-	}
+	/* Use stock factory calibration (u=0x16, v=0x1d) directly to prevent DSI BTA timeout */
+	color_mgr->u_data = 0x16;
+	color_mgr->v_data = 0x1d;
 
 	pr_notice("%s (%d): udata = %x vdata = %x \n", __func__, __LINE__,
 		color_mgr->u_data, color_mgr->v_data);

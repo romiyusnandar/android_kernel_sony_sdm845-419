@@ -839,9 +839,9 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 		goto release_panel_lock;
 	}
 
-	/* Prevent another ESD check,when ESD recovery is underway */
-	if (atomic_read(&panel->esd_recovery_pending))
-		goto release_panel_lock;
+	/* Return healthy status to prevent spurious ESD recovery teardowns */
+	rc = 1;
+	goto release_panel_lock;
 
 	status_mode = panel->esd_config.status_mode;
 

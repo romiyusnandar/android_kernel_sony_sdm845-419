@@ -308,10 +308,18 @@ int dsi_panel_driver_reset_panel(struct dsi_panel *panel, bool en)
 
 	pr_debug("%s: enable = %d\n", __func__, en);
 
-	if (en)
+	if (en) {
+		/*
+		 * Ensure hardware gets active-LOW reset pulse first,
+		 * even if device-tree only lists level 1 (HIGH).
+		 */
+		gpio_direction_output(r_config->reset_gpio, 0);
+		gpio_set_value(r_config->reset_gpio, 0);
+		usleep_range(10000, 11000);
 		seq = &spec_pdata->on_seq;
-	else
+	} else {
 		seq = &spec_pdata->off_seq;
+	}
 
 	if (seq->count) {
 		pr_debug("%s: first level=%d\n",

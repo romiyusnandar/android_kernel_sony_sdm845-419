@@ -118,7 +118,7 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 
 static int sde_backlight_device_get_brightness(struct backlight_device *bd)
 {
-	return 0;
+	return bd->props.brightness;
 }
 
 static const struct backlight_ops sde_backlight_device_ops = {
@@ -161,6 +161,7 @@ static int sde_backlight_setup(struct sde_connector *c_conn,
 		return -ENODEV;
 	}
 	display_count++;
+	c_conn->allow_bl_update = true;
 
 	return 0;
 }
