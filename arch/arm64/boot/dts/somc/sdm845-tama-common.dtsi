@@ -26,11 +26,12 @@
 			ecc-size = <16>;
 		};
 
+		/delete-node/ qseecom_region@0x8ab00000;
 		qseecom_mem: qseecom_region@8ab00000 {
 			reg = <0 0x8ab00000 0 0x1900000>;
 		};
 
-		/delete-node/ camera_region@8bf00000;
+		/delete-node/ camera_region@0x8bf00000;
 		pil_camera_mem: camera_region@97c00000 {
 			compatible = "removed-dma-pool";
 			no-map;
