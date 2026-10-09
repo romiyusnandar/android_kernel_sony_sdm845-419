@@ -140,3 +140,12 @@ kernel/configs/android-*.cfg
 #Ignoring Android.bp link file
 #
 Android.bp
+out/
+
+# Image & boot packing artifacts
+*.img
+pack_boot_*.py
+cmdline_*.txt
+dmesg_*.txt
+last_kmsg_*.txt
+__pycache__/
