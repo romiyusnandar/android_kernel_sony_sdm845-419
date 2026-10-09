@@ -237,8 +237,8 @@ static int clearpad_i2c_probe(struct i2c_client *client,
 
 	rc = clearpad_get_active_panel(client->dev.of_node);
 	if (rc < 0) {
-		dev_err(&client->dev, "%s: Active panel not found, aborting probe\n", __func__);
-		rc = -ENODEV;
+		dev_err(&client->dev, "%s: Active panel not found, deferring probe\n", __func__);
+		rc = -EPROBE_DEFER;
 		goto exit;
 	}
 
