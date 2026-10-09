@@ -12,6 +12,21 @@
 #define MSM_VIDC_HAL_INTERLACE_COLOR_FORMAT_NV12_UBWC	0x8002
 #define MSM_VIDC_EXTRADATA_FRAME_QP_ADV 0x1
 
+#ifndef MSM_VIDC_BUFFER_FD
+enum msm_vidc_buffer_plane_reserved {
+	MSM_VIDC_BUFFER_FD = 0,
+	MSM_VIDC_DATA_OFFSET = 1,
+	MSM_VIDC_COMP_RATIO = 2,
+	MSM_VIDC_INPUT_TAG_1 = 3,
+	MSM_VIDC_OUTPUT_TAG_1 = 4,
+};
+#define MSM_VIDC_BUFFER_FD MSM_VIDC_BUFFER_FD
+#define MSM_VIDC_DATA_OFFSET MSM_VIDC_DATA_OFFSET
+#define MSM_VIDC_COMP_RATIO MSM_VIDC_COMP_RATIO
+#define MSM_VIDC_INPUT_TAG_1 MSM_VIDC_INPUT_TAG_1
+#define MSM_VIDC_OUTPUT_TAG_1 MSM_VIDC_OUTPUT_TAG_1
+#endif
+
 struct msm_vidc_extradata_header {
 	unsigned int size;
 	unsigned int:32; /** Keeping binary compatibility */

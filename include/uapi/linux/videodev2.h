@@ -1001,6 +1001,21 @@ struct v4l2_plane {
 	__u32			reserved[11];
 };
 
+#ifndef MSM_VIDC_BUFFER_FD
+enum msm_vidc_buffer_plane_reserved {
+	MSM_VIDC_BUFFER_FD = 0,
+	MSM_VIDC_DATA_OFFSET = 1,
+	MSM_VIDC_COMP_RATIO = 2,
+	MSM_VIDC_INPUT_TAG_1 = 3,
+	MSM_VIDC_OUTPUT_TAG_1 = 4,
+};
+#define MSM_VIDC_BUFFER_FD MSM_VIDC_BUFFER_FD
+#define MSM_VIDC_DATA_OFFSET MSM_VIDC_DATA_OFFSET
+#define MSM_VIDC_COMP_RATIO MSM_VIDC_COMP_RATIO
+#define MSM_VIDC_INPUT_TAG_1 MSM_VIDC_INPUT_TAG_1
+#define MSM_VIDC_OUTPUT_TAG_1 MSM_VIDC_OUTPUT_TAG_1
+#endif
+
 /**
  * struct v4l2_buffer - video buffer info
  * @index:	id number of the buffer
