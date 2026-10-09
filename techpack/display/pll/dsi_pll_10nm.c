@@ -1229,8 +1229,8 @@ static unsigned long vco_10nm_recalc_rate(struct clk_hw *hw,
 		return 0;
 	}
 
-	if (!dsi_pll_10nm_lock_status(pll))
-		pll->handoff_resources = true;
+	/* Do not hand off PLL from bootloader; always cold-start cleanly */
+	pll->handoff_resources = false;
 
 
 	(void)mdss_pll_resource_enable(pll, false);
