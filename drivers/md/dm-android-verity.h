@@ -111,8 +111,10 @@ extern struct target_type linear_target;
 
 extern void dm_linear_dtr(struct dm_target *ti);
 extern int dm_linear_map(struct dm_target *ti, struct bio *bio);
+#ifdef CONFIG_BLK_DEV_ZONED
 extern int dm_linear_end_io(struct dm_target *ti, struct bio *bio,
 			 blk_status_t *error);
+#endif
 extern void dm_linear_status(struct dm_target *ti, status_type_t type,
 			unsigned status_flags, char *result, unsigned maxlen);
 extern int dm_linear_prepare_ioctl(struct dm_target *ti, struct block_device **bdev);
