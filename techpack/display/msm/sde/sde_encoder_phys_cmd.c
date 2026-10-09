@@ -50,6 +50,10 @@ static inline int _sde_encoder_phys_cmd_get_idle_timeout(
 			KICKOFF_TIMEOUT_MS : KICKOFF_TIMEOUT_MS;
 }
 
+static bool sde_cmd_tc_enable = false;
+module_param(sde_cmd_tc_enable, bool, 0600);
+MODULE_PARM_DESC(sde_cmd_tc_enable, "Enable SDE command mode tearcheck (default: false)");
+
 static inline bool sde_encoder_phys_cmd_is_master(
 		struct sde_encoder_phys *phys_enc)
 {
@@ -1006,7 +1010,7 @@ static void sde_encoder_phys_cmd_tearcheck_config(
 		to_sde_encoder_phys_cmd(phys_enc);
 	struct sde_hw_tear_check tc_cfg = { 0 };
 	struct drm_display_mode *mode;
-	bool tc_enable = true;
+	bool tc_enable = sde_cmd_tc_enable;
 	u32 vsync_hz, extra_frame_trigger_time;
 	struct msm_drm_private *priv;
 	struct sde_kms *sde_kms;
@@ -1221,6 +1225,9 @@ static void sde_encoder_phys_cmd_connect_te(
 {
 	if (!phys_enc || !phys_enc->hw_pp || !phys_enc->hw_intf)
 		return;
+
+	if (!sde_cmd_tc_enable)
+		enable = false;
 
 	if (phys_enc->has_intf_te &&
 			phys_enc->hw_intf->ops.connect_external_te)
