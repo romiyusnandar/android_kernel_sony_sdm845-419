@@ -109,6 +109,10 @@ static bool sdecustom = true;
 module_param(sdecustom, bool, 0400);
 MODULE_PARM_DESC(sdecustom, "Enable customizations for sde clients");
 
+static bool cont_splash_en = false;
+module_param(cont_splash_en, bool, 0600);
+MODULE_PARM_DESC(cont_splash_en, "Enable continuous splash handoff (default: false)");
+
 static int sde_kms_hw_init(struct msm_kms *kms);
 static int _sde_kms_mmu_destroy(struct sde_kms *sde_kms);
 static int _sde_kms_mmu_init(struct sde_kms *sde_kms);
@@ -3397,6 +3401,11 @@ static int _sde_kms_get_splash_data(struct sde_splash_data *data)
 	bool share_splash_mem = false;
 	int num_displays, num_regions;
 	struct sde_splash_display *splash_display;
+
+	if (!cont_splash_en) {
+		pr_info("cont_splash: handoff disabled (cont_splash_en=false)\n");
+		return -EINVAL;
+	}
 
 	if (!data)
 		return -EINVAL;
