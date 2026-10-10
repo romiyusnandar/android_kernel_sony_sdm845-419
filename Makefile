@@ -507,11 +507,26 @@ ifneq ($(KBUILD_SRC),)
 endif
 
 ifeq ($(cc-name),clang)
+CLANG_TARGET_FLAGS_arm64	:= aarch64-linux-gnu
+CLANG_TARGET_FLAGS_arm		:= arm-linux-gnueabi
+CLANG_TARGET_FLAGS_x86		:= x86_64-linux-gnu
+CLANG_TARGET_FLAGS		:= $(CLANG_TARGET_FLAGS_$(SRCARCH))
+
+ifeq ($(CLANG_TRIPLE),)
+CLANG_TRIPLE			?= $(CROSS_COMPILE)
+endif
+ifneq ($(CLANG_TRIPLE),)
+CLANG_TARGET_FLAGS		:= $(notdir $(CLANG_TRIPLE:%-=%))
+endif
+ifneq ($(CLANG_TARGET_FLAGS),)
+CLANG_FLAGS			+= --target=$(CLANG_TARGET_FLAGS)
+endif
 ifneq ($(CROSS_COMPILE),)
-CLANG_FLAGS	+= --target=$(notdir $(CROSS_COMPILE:%-=%))
-GCC_TOOLCHAIN_DIR := $(dir $(shell which $(CROSS_COMPILE)elfedit))
+GCC_TOOLCHAIN_DIR := $(dir $(shell which $(CROSS_COMPILE)elfedit 2>/dev/null))
+ifneq ($(GCC_TOOLCHAIN_DIR),)
 CLANG_FLAGS	+= --prefix=$(GCC_TOOLCHAIN_DIR)$(notdir $(CROSS_COMPILE))
 GCC_TOOLCHAIN	:= $(realpath $(GCC_TOOLCHAIN_DIR)/..)
+endif
 endif
 ifneq ($(GCC_TOOLCHAIN),)
 CLANG_FLAGS	+= --gcc-toolchain=$(GCC_TOOLCHAIN)
@@ -738,16 +753,6 @@ stackp-flags-$(CONFIG_STACKPROTECTOR_STRONG)      := -fstack-protector-strong
 KBUILD_CFLAGS += $(stackp-flags-y)
 
 ifeq ($(cc-name),clang)
-ifneq ($(CROSS_COMPILE),)
-CLANG_TRIPLE	?= $(CROSS_COMPILE)
-CLANG_TARGET	:= --target=$(notdir $(CLANG_TRIPLE:%-=%))
-GCC_TOOLCHAIN	:= $(realpath $(dir $(shell which $(LD)))/..)
-endif
-ifneq ($(GCC_TOOLCHAIN),)
-CLANG_GCC_TC	:= --gcc-toolchain=$(GCC_TOOLCHAIN)
-endif
-KBUILD_CFLAGS += $(CLANG_TARGET) $(CLANG_GCC_TC) -meabi gnu
-KBUILD_AFLAGS += $(CLANG_TARGET) $(CLANG_GCC_TC)
 KBUILD_CPPFLAGS += $(call cc-option,-Qunused-arguments,)
 KBUILD_CFLAGS += $(call cc-disable-warning, format-invalid-specifier)
 KBUILD_CFLAGS += $(call cc-disable-warning, gnu)
