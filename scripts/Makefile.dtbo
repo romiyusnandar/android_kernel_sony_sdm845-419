@@ -25,6 +25,8 @@ $(obj)/%.dtbo: $(src)/%.dts FORCE
 	$(call if_changed_dep,dtc)
 	$(call if_changed,dtbo_verify)
 
+ifneq ($(DTC_OVERLAY_TEST_EXT),)
 $(call multi_depend, $(dtbo), , -base)
+endif
 
-always +=  $(dtbo)
+always +=  $(__dtbo)
