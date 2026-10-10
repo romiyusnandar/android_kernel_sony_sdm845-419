@@ -44,12 +44,14 @@ static inline unsigned int VENUS_EXTRADATA_SIZE(int width, int height)
 
 #define V4L2_CID_MPEG_VIDC_VIDEO_IDR_PERIOD   (V4L2_CID_MPEG_MSM_VIDC_BASE+5)
 
+#ifndef V4L2_CID_MPEG_VIDC_VIDEO_STREAM_OUTPUT_MODE
 #define V4L2_CID_MPEG_VIDC_VIDEO_STREAM_OUTPUT_MODE \
 		(V4L2_CID_MPEG_MSM_VIDC_BASE + 22)
 enum v4l2_mpeg_vidc_video_decoder_multi_stream {
 	V4L2_CID_MPEG_VIDC_VIDEO_STREAM_OUTPUT_PRIMARY = 0,
 	V4L2_CID_MPEG_VIDC_VIDEO_STREAM_OUTPUT_SECONDARY = 1,
 };
+#endif
 
 struct msm_vidc_extradata_header {
 	unsigned int size;
@@ -272,8 +274,14 @@ struct msm_vidc_vui_display_info_payload {
 	unsigned int video_full_range_flag;
 	unsigned int color_description_present_flag;
 	unsigned int color_primaries;
-	unsigned int transfer_characteristics;
-	unsigned int matrix_coefficients;
+	union {
+		unsigned int transfer_char;
+		unsigned int transfer_characteristics;
+	};
+	union {
+		unsigned int matrix_coeffs;
+		unsigned int matrix_coefficients;
+	};
 	unsigned int chroma_location_info_present_flag;
 	unsigned int chroma_format_idc;
 	unsigned int separate_color_plane_flag;
