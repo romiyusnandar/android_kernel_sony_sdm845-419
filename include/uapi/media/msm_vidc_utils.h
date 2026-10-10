@@ -264,8 +264,14 @@ struct msm_vidc_vui_display_info_payload {
 	unsigned int video_full_range_flag;
 	unsigned int color_description_present_flag;
 	unsigned int color_primaries;
-	unsigned int transfer_characteristics;
-	unsigned int matrix_coefficients;
+	union {
+		unsigned int transfer_char;
+		unsigned int transfer_characteristics;
+	};
+	union {
+		unsigned int matrix_coeffs;
+		unsigned int matrix_coefficients;
+	};
 	unsigned int chroma_location_info_present_flag;
 	unsigned int chroma_format_idc;
 	unsigned int separate_color_plane_flag;
