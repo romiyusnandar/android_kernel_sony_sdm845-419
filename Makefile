@@ -765,6 +765,9 @@ KBUILD_CFLAGS += $(call cc-option, -mllvm -disable-struct-const-merge)
 KBUILD_CFLAGS += $(call cc-disable-warning, default-const-init-unsafe)
 KBUILD_CFLAGS += $(call cc-disable-warning, default-const-init-var-unsafe)
 KBUILD_CFLAGS += $(call cc-disable-warning, default-const-init-field-unsafe)
+KBUILD_CFLAGS += $(call cc-disable-warning, implicit-enum-enum-cast)
+KBUILD_CFLAGS += $(call cc-disable-warning, enum-enum-conversion)
+KBUILD_CFLAGS += $(call cc-disable-warning, enum-conversion)
 
 # Quiet clang warning: comparison of unsigned expression < 0 is always false
 KBUILD_CFLAGS += $(call cc-disable-warning, tautological-compare)
