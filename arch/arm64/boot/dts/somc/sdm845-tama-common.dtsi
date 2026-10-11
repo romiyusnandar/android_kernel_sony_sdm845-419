@@ -3,10 +3,9 @@
  * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
  */
 
-/ {
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
+&reserved_memory {
+	#address-cells = <2>;
+	#size-cells = <2>;
 
 		debug_region: debug_region@ffb00000 {
 			compatible = "removed-dma-pool", "qcom,debug_memory";
@@ -38,7 +37,6 @@
 			reg = <0 0x97c00000 0 0x500000>;
 		};
 	};
-};
 
 &cam_cci {
 	/* The value of clock that depens on the following parameter is different from Qualcomm.
