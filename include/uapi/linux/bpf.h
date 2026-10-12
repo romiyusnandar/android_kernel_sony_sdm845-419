@@ -258,6 +258,8 @@ enum bpf_attach_type {
 
 /* when bpf_ldimm64->src_reg == BPF_PSEUDO_MAP_FD, bpf_ldimm64->imm == fd */
 #define BPF_PSEUDO_MAP_FD	1
+/* when bpf_ldimm64->src_reg == BPF_PSEUDO_MAP_VALUE, val == map->value + imm */
+#define BPF_PSEUDO_MAP_VALUE	2
 
 /* when bpf_call->src_reg == BPF_PSEUDO_CALL, bpf_call->imm == pc-relative
  * offset to another bpf function
