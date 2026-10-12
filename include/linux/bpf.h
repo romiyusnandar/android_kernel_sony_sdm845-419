@@ -173,6 +173,7 @@ enum bpf_arg_type {
 	ARG_PTR_TO_CTX,		/* pointer to context */
 	ARG_ANYTHING,		/* any (initialized) argument is ok */
 	ARG_PTR_TO_SOCKET,	/* pointer to bpf_sock (fullsock) */
+	ARG_PTR_TO_SOCK_COMMON,	/* pointer to sock_common */
 	ARG_PTR_TO_ALLOC_MEM,		/* the pointer to dynamically allocated bytes */
 	ARG_PTR_TO_ALLOC_MEM_OR_NULL,	/* pointer to dynamically allocated memory or NULL */
 	ARG_CONST_ALLOC_SIZE_OR_ZERO,	/* number of allocated bytes requested */
@@ -204,6 +205,7 @@ enum bpf_return_type {
 	RET_PTR_TO_MAP_VALUE,		/* returns a pointer to map elem value */
 	RET_PTR_TO_MAP_VALUE_OR_NULL,	/* returns a pointer to map elem value or NULL */
 	RET_PTR_TO_ALLOC_MEM_OR_NULL,	/* returns a pointer to dynamically allocated memory or NULL */
+	RET_PTR_TO_SOCKET_OR_NULL,	/* returns a pointer to a socket or NULL */
 };
 
 /* eBPF function prototype used by verifier to allow BPF_CALLs from eBPF programs
@@ -256,6 +258,8 @@ enum bpf_reg_type {
 	PTR_TO_PACKET_END,	 /* skb->data + headlen */
 	PTR_TO_SOCKET,		 /* reg points to struct bpf_sock */
 	PTR_TO_SOCKET_OR_NULL,	 /* reg points to struct bpf_sock or NULL */
+	PTR_TO_SOCK_COMMON,	 /* reg points to sock_common */
+	PTR_TO_SOCK_COMMON_OR_NULL, /* reg points to sock_common or NULL */
 	PTR_TO_MEM,		 /* reg points to valid memory region */
 	PTR_TO_MEM_OR_NULL,	 /* reg points to valid memory region or NULL */
 };
@@ -279,6 +283,11 @@ struct bpf_prog_ops {
 			union bpf_attr __user *uattr);
 };
 
+typedef u32 (*bpf_convert_ctx_access_t)(enum bpf_access_type type,
+					const struct bpf_insn *src,
+					struct bpf_insn *dst,
+					struct bpf_prog *prog, u32 *target_size);
+
 struct bpf_verifier_ops {
 	/* return eBPF function prototype for verification */
 	const struct bpf_func_proto *
@@ -295,10 +304,7 @@ struct bpf_verifier_ops {
 			    const struct bpf_prog *prog);
 	int (*gen_ld_abs)(const struct bpf_insn *orig,
 			  struct bpf_insn *insn_buf);
-	u32 (*convert_ctx_access)(enum bpf_access_type type,
-				  const struct bpf_insn *src,
-				  struct bpf_insn *dst,
-				  struct bpf_prog *prog, u32 *target_size);
+	bpf_convert_ctx_access_t convert_ctx_access;
 };
 
 struct bpf_prog_offload_ops {
@@ -910,5 +916,39 @@ void bpf_map_inc_with_uref(struct bpf_map *map);
 /* Shared helpers among cBPF and eBPF. */
 void bpf_user_rnd_init_once(void);
 u64 bpf_user_rnd_u32(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5);
+
+#if defined(CONFIG_NET)
+bool bpf_sock_common_is_valid_access(int off, int size,
+				     enum bpf_access_type type,
+				     struct bpf_insn_access_aux *info);
+bool bpf_sock_is_valid_access(int off, int size, enum bpf_access_type type,
+			      struct bpf_insn_access_aux *info);
+u32 bpf_sock_convert_ctx_access(enum bpf_access_type type,
+				const struct bpf_insn *si,
+				struct bpf_insn *insn_buf,
+				struct bpf_prog *prog,
+				u32 *target_size);
+#else
+static inline bool bpf_sock_common_is_valid_access(int off, int size,
+						   enum bpf_access_type type,
+						   struct bpf_insn_access_aux *info)
+{
+	return false;
+}
+static inline bool bpf_sock_is_valid_access(int off, int size,
+					    enum bpf_access_type type,
+					    struct bpf_insn_access_aux *info)
+{
+	return false;
+}
+static inline u32 bpf_sock_convert_ctx_access(enum bpf_access_type type,
+					      const struct bpf_insn *si,
+					      struct bpf_insn *insn_buf,
+					      struct bpf_prog *prog,
+					      u32 *target_size)
+{
+	return 0;
+}
+#endif
 
 #endif /* _LINUX_BPF_H */

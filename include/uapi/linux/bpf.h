@@ -2551,15 +2551,15 @@ struct bpf_sock {
 	__u32 protocol;
 	__u32 mark;
 	__u32 priority;
-	__u32 src_ip4;		/* Allows 1,2,4-byte read.
-				 * Stored in network byte order.
-				 */
-	__u32 src_ip6[4];	/* Allows 1,2,4-byte read.
-				 * Stored in network byte order.
-				 */
-	__u32 src_port;		/* Allows 4-byte read.
-				 * Stored in host byte order
-				 */
+	/* IP address also allows 1 and 2 bytes access */
+	__u32 src_ip4;
+	__u32 src_ip6[4];
+	__u32 src_port;		/* host byte order */
+	__be16 dst_port;	/* network byte order */
+	__u16 :16;		/* zero padding */
+	__u32 dst_ip4;
+	__u32 dst_ip6[4];
+	__u32 state;
 };
 
 #define XDP_PACKET_HEADROOM 256
