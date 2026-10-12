@@ -140,6 +140,8 @@ struct bpf_id_pair {
 struct bpf_verifier_state {
 	/* call stack tracking */
 	struct bpf_func_state *frame[MAX_CALL_FRAMES];
+	struct bpf_verifier_state *parent;
+	u32 branches;
 	u32 curframe;
 	bool speculative;
 };
