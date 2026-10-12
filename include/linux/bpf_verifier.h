@@ -196,6 +196,7 @@ static inline bool bpf_verifier_log_needed(const struct bpf_verifier_log *log)
 
 struct bpf_subprog_info {
 	u32 start; /* insn idx of function entry point */
+	u32 linfo_idx;
 	u16 stack_depth; /* max. stack depth used by this function */
 };
 
@@ -240,5 +241,7 @@ static inline struct bpf_reg_state *cur_regs(struct bpf_verifier_env *env)
 int bpf_prog_offload_verifier_prep(struct bpf_verifier_env *env);
 int bpf_prog_offload_verify_insn(struct bpf_verifier_env *env,
 				 int insn_idx, int prev_insn_idx);
+int bpf_check(struct bpf_prog **prog, union bpf_attr *attr,
+	      union bpf_attr __user *uattr);
 
 #endif /* _LINUX_BPF_VERIFIER_H */

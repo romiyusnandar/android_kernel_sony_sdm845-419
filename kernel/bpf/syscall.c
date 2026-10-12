@@ -1117,6 +1117,10 @@ static void __bpf_prog_put_rcu(struct rcu_head *rcu)
 {
 	struct bpf_prog_aux *aux = container_of(rcu, struct bpf_prog_aux, rcu);
 
+	kvfree(aux->func_info);
+	kvfree(aux->linfo);
+	if (aux->btf)
+		btf_put(aux->btf);
 	free_used_maps(aux);
 	bpf_prog_uncharge_memlock(aux->prog);
 	security_bpf_prog_free(aux);
@@ -1355,9 +1359,9 @@ bpf_prog_load_check_attach_type(enum bpf_prog_type prog_type,
 }
 
 /* last field in 'union bpf_attr' used by this command */
-#define	BPF_PROG_LOAD_LAST_FIELD expected_attach_type
+#define	BPF_PROG_LOAD_LAST_FIELD fd_array
 
-static int bpf_prog_load(union bpf_attr *attr)
+static int bpf_prog_load(union bpf_attr *attr, union bpf_attr __user *uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
 	struct bpf_prog *prog;
@@ -1366,6 +1370,9 @@ static int bpf_prog_load(union bpf_attr *attr)
 	bool is_gpl;
 
 	if (CHECK_ATTR(BPF_PROG_LOAD))
+		return -EINVAL;
+
+	if (attr->attach_btf_id || attr->attach_prog_fd || attr->core_relo_cnt)
 		return -EINVAL;
 
 	if (attr->prog_flags & ~(BPF_F_STRICT_ALIGNMENT | BPF_F_ANY_ALIGNMENT))
@@ -1385,7 +1392,8 @@ static int bpf_prog_load(union bpf_attr *attr)
 	/* eBPF programs must be GPL compatible to use GPL-ed functions */
 	is_gpl = license_is_gpl_compatible(license);
 
-	if (attr->insn_cnt == 0 || attr->insn_cnt > BPF_MAXINSNS)
+	if (attr->insn_cnt == 0 ||
+	    attr->insn_cnt > (capable(CAP_SYS_ADMIN) ? BPF_COMPLEXITY_LIMIT_INSNS : BPF_MAXINSNS))
 		return -E2BIG;
 
 	if (type == BPF_PROG_TYPE_KPROBE &&
@@ -1448,7 +1456,7 @@ static int bpf_prog_load(union bpf_attr *attr)
 		goto free_prog;
 
 	/* run eBPF verifier */
-	err = bpf_check(&prog, attr);
+	err = bpf_check(&prog, attr, uattr);
 	if (err < 0)
 		goto free_used_maps;
 
@@ -1485,6 +1493,10 @@ free_used_maps:
 	bpf_prog_kallsyms_del_subprogs(prog);
 	free_used_maps(prog->aux);
 free_prog:
+	if (prog->aux->btf)
+		btf_put(prog->aux->btf);
+	kvfree(prog->aux->func_info);
+	kvfree(prog->aux->linfo);
 	bpf_prog_uncharge_memlock(prog);
 free_prog_sec:
 	security_bpf_prog_free(prog->aux);
@@ -2009,6 +2021,9 @@ static int bpf_prog_get_info_by_fd(struct file *file,
 		info.xlated_prog_len = 0;
 		info.nr_jited_ksyms = 0;
 		info.nr_jited_func_lens = 0;
+		info.nr_func_info = 0;
+		info.nr_line_info = 0;
+		info.nr_jited_line_info = 0;
 		goto done;
 	}
 
@@ -2130,6 +2145,33 @@ static int bpf_prog_get_info_by_fd(struct file *file,
 		} else {
 			info.jited_func_lens = 0;
 		}
+	}
+
+	if (prog->aux->btf)
+		info.btf_id = btf_id(prog->aux->btf);
+
+	ulen = info.nr_func_info;
+	info.nr_func_info = prog->aux->func_info_cnt;
+	if (info.nr_func_info && ulen) {
+		char __user *user_finfo;
+
+		user_finfo = u64_to_user_ptr(info.func_info);
+		ulen = min_t(u32, info.nr_func_info, ulen);
+		if (copy_to_user(user_finfo, prog->aux->func_info,
+				 info.func_info_rec_size * ulen))
+			return -EFAULT;
+	}
+
+	ulen = info.nr_line_info;
+	info.nr_line_info = prog->aux->nr_linfo;
+	if (info.nr_line_info && ulen) {
+		char __user *user_linfo;
+
+		user_linfo = u64_to_user_ptr(info.line_info);
+		ulen = min_t(u32, info.nr_line_info, ulen);
+		if (copy_to_user(user_linfo, prog->aux->linfo,
+				 info.line_info_rec_size * ulen))
+			return -EFAULT;
 	}
 
 done:
@@ -2393,8 +2435,11 @@ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 		return -EPERM;
 
 	err = bpf_check_uarg_tail_zero(uattr, sizeof(attr), size);
-	if (err)
+	if (err) {
+		pr_err("bpf: check_uarg_tail_zero failed: cmd=%d exp=%zu actual=%u err=%d\n",
+		       cmd, sizeof(attr), size, err);
 		return err;
+	}
 	size = min_t(u32, size, sizeof(attr));
 
 	/* copy attributes from user space, may be less than sizeof(bpf_attr) */
@@ -2423,7 +2468,7 @@ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 		err = map_get_next_key(&attr);
 		break;
 	case BPF_PROG_LOAD:
-		err = bpf_prog_load(&attr);
+		err = bpf_prog_load(&attr, uattr);
 		break;
 	case BPF_OBJ_PIN:
 		err = bpf_obj_pin(&attr);

@@ -299,11 +299,19 @@ struct bpf_prog_aux {
 	void *security;
 #endif
 	struct bpf_prog_offload *offload;
+	struct btf *btf;
+	struct bpf_func_info *func_info;
+	struct bpf_line_info *linfo;
+	u32 func_info_cnt;
+	u32 nr_linfo;
+	u32 linfo_idx;
 	union {
 		struct work_struct work;
 		struct rcu_head	rcu;
 	};
 };
+
+#define BPF_COMPLEXITY_LIMIT_INSNS	1000000 /* yes. 1M insns */
 
 struct bpf_array {
 	struct bpf_map map;
@@ -506,7 +514,8 @@ static inline void bpf_long_memcpy(void *dst, const void *src, u32 size)
 }
 
 /* verify correctness of eBPF program */
-int bpf_check(struct bpf_prog **fp, union bpf_attr *attr);
+int bpf_check(struct bpf_prog **fp, union bpf_attr *attr,
+	      union bpf_attr __user *uattr);
 void bpf_patch_call_args(struct bpf_insn *insn, u32 stack_depth);
 
 /* Map specifics */
