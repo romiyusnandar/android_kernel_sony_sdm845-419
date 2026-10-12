@@ -2378,6 +2378,17 @@ enum bpf_lwt_encap_mode {
 	BPF_LWT_ENCAP_SEG6_INLINE
 };
 
+#ifndef __bpf_md_ptr
+#define __bpf_md_ptr(type, name)	\
+union {					\
+	type name;			\
+	__u64 :64;			\
+} __attribute__((aligned(8)))
+#endif
+
+struct bpf_flow_keys;
+struct bpf_sock;
+
 /* user accessible mirror of in-kernel sk_buff.
  * new fields can only be added to the end of this structure
  */
@@ -2412,6 +2423,12 @@ struct __sk_buff {
 	/* ... here. */
 
 	__u32 data_meta;
+	__bpf_md_ptr(struct bpf_flow_keys *, flow_keys);
+	__u64 tstamp;
+	__u32 wire_len;
+	__u32 gso_segs;
+	__bpf_md_ptr(struct bpf_sock *, sk);
+	__u32 gso_size;
 };
 
 struct bpf_tunnel_key {
