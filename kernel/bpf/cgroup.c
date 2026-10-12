@@ -768,17 +768,22 @@ int __cgroup_bpf_run_filter_setsockopt(struct sock *sk, int *level,
 		ret = 0;
 
 		/* export any potential modifications */
-		if (ctx.level != *level || ctx.optname != *optname || ctx.optlen != *optlen) {
-			*level = ctx.level;
-			*optname = ctx.optname;
+		*level = ctx.level;
+		*optname = ctx.optname;
+
+		/* optlen == 0 from BPF indicates that we should
+		 * use original userspace data.
+		 */
+		if (ctx.optlen != 0) {
 			*optlen = ctx.optlen;
 			*kernel_optval = ctx.optval;
+			/* export and don't free sockopt buf */
+			return 0;
 		}
 	}
 
 out:
-	if (ret || !*kernel_optval)
-		sockopt_free_buf(&ctx);
+	sockopt_free_buf(&ctx);
 	return ret;
 }
 EXPORT_SYMBOL(__cgroup_bpf_run_filter_setsockopt);
