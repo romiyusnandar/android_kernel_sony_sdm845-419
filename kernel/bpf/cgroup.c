@@ -681,8 +681,15 @@ static bool __cgroup_bpf_prog_array_is_empty(struct cgroup *cgrp,
 
 static int sockopt_alloc_buf(struct bpf_sockopt_kern *ctx, int max_optlen)
 {
-	if (unlikely(max_optlen > PAGE_SIZE) || max_optlen < 0)
+	if (unlikely(max_optlen < 0))
 		return -EINVAL;
+
+	if (unlikely(max_optlen > PAGE_SIZE)) {
+		/* We don't expose optvals that are greater than PAGE_SIZE
+		 * to the BPF program.
+		 */
+		max_optlen = PAGE_SIZE;
+	}
 
 	ctx->optval = kzalloc(max_optlen, GFP_USER);
 	if (!ctx->optval)
@@ -691,7 +698,7 @@ static int sockopt_alloc_buf(struct bpf_sockopt_kern *ctx, int max_optlen)
 	ctx->optval_end = ctx->optval + max_optlen;
 	ctx->optlen = max_optlen;
 
-	return 0;
+	return max_optlen;
 }
 
 static void sockopt_free_buf(struct bpf_sockopt_kern *ctx)
@@ -709,7 +716,9 @@ int __cgroup_bpf_run_filter_setsockopt(struct sock *sk, int *level,
 		.level = *level,
 		.optname = *optname,
 	};
-	int ret;
+	int ret, max_optlen;
+
+	*kernel_optval = NULL;
 
 	/* Opportunistic check to see whether we have any BPF program
 	 * attached to the hook so we don't waste time allocating
@@ -719,11 +728,21 @@ int __cgroup_bpf_run_filter_setsockopt(struct sock *sk, int *level,
 	    __cgroup_bpf_prog_array_is_empty(cgrp, BPF_CGROUP_SETSOCKOPT))
 		return 0;
 
-	ret = sockopt_alloc_buf(&ctx, *optlen);
-	if (ret)
-		return ret;
+	/* Skip netfilter table operations (IPT_SO_SET_REPLACE / IP6T_SO_SET_REPLACE)
+	 * which contain embedded userspace pointers and should never run under
+	 * KERNEL_DS or BPF sockopt.
+	 */
+	if ((*level == SOL_IP || *level == SOL_IPV6) &&
+	    (*optname >= 64 && *optname <= 65))
+		return 0;
 
-	if (copy_from_user(ctx.optval, optval, *optlen) != 0) {
+	max_optlen = sockopt_alloc_buf(&ctx, *optlen);
+	if (max_optlen < 0)
+		return max_optlen;
+
+	ctx.optlen = *optlen;
+
+	if (copy_from_user(ctx.optval, optval, min(*optlen, max_optlen)) != 0) {
 		ret = -EFAULT;
 		goto out;
 	}
@@ -741,7 +760,7 @@ int __cgroup_bpf_run_filter_setsockopt(struct sock *sk, int *level,
 	if (ctx.optlen == -1) {
 		/* optlen set to -1, bypass kernel */
 		ret = 1;
-	} else if (ctx.optlen > *optlen || ctx.optlen < -1) {
+	} else if (ctx.optlen > max_optlen || ctx.optlen < -1) {
 		/* optlen is out of bounds */
 		ret = -EFAULT;
 	} else {
@@ -749,14 +768,16 @@ int __cgroup_bpf_run_filter_setsockopt(struct sock *sk, int *level,
 		ret = 0;
 
 		/* export any potential modifications */
-		*level = ctx.level;
-		*optname = ctx.optname;
-		*optlen = ctx.optlen;
-		*kernel_optval = ctx.optval;
+		if (ctx.level != *level || ctx.optname != *optname || ctx.optlen != *optlen) {
+			*level = ctx.level;
+			*optname = ctx.optname;
+			*optlen = ctx.optlen;
+			*kernel_optval = ctx.optval;
+		}
 	}
 
 out:
-	if (ret)
+	if (ret || !*kernel_optval)
 		sockopt_free_buf(&ctx);
 	return ret;
 }
@@ -774,7 +795,7 @@ int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
 		.optname = optname,
 		.retval = retval,
 	};
-	int ret;
+	int ret, alloc_len;
 
 	/* Opportunistic check to see whether we have any BPF program
 	 * attached to the hook so we don't waste time allocating
@@ -784,9 +805,14 @@ int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
 	    __cgroup_bpf_prog_array_is_empty(cgrp, BPF_CGROUP_GETSOCKOPT))
 		return retval;
 
-	ret = sockopt_alloc_buf(&ctx, max_optlen);
-	if (ret)
-		return ret;
+	/* Skip netfilter table operations */
+	if ((level == SOL_IP || level == SOL_IPV6) &&
+	    (optname >= 64 && optname <= 68))
+		return retval;
+
+	alloc_len = sockopt_alloc_buf(&ctx, max_optlen);
+	if (alloc_len < 0)
+		return alloc_len;
 
 	if (!retval) {
 		/* If kernel getsockopt finished successfully,
@@ -801,10 +827,10 @@ int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
 			goto out;
 		}
 
-		if (ctx.optlen > max_optlen)
-			ctx.optlen = max_optlen;
+		if (ctx.optlen > alloc_len)
+			ctx.optlen = alloc_len;
 
-		if (copy_from_user(ctx.optval, optval, ctx.optlen) != 0) {
+		if (copy_from_user(ctx.optval, optval, min(ctx.optlen, alloc_len)) != 0) {
 			ret = -EFAULT;
 			goto out;
 		}
@@ -833,10 +859,12 @@ int __cgroup_bpf_run_filter_getsockopt(struct sock *sk, int level,
 		goto out;
 	}
 
-	if (copy_to_user(optval, ctx.optval, ctx.optlen) ||
-	    put_user(ctx.optlen, optlen)) {
-		ret = -EFAULT;
-		goto out;
+	if (ctx.optlen != 0) {
+		if (copy_to_user(optval, ctx.optval, min(ctx.optlen, alloc_len)) ||
+		    put_user(ctx.optlen, optlen)) {
+			ret = -EFAULT;
+			goto out;
+		}
 	}
 
 	ret = ctx.retval;
