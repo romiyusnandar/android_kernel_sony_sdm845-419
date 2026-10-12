@@ -1248,12 +1248,12 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 	memcpy(&tmp, utsname(), sizeof(tmp));
 	up_read(&uts_sem);
 
-	/* Spoof 4.19 -> 5.4 for Android 16/17 netbpfload */
+	/* Spoof 4.19 -> 5.10 for Android 16/17 netbpfload (25Q4 requires 5.10) */
 	if (tmp.release[0] == '4' && tmp.release[1] == '.' &&
 	    tmp.release[2] == '1' && tmp.release[3] == '9') {
 		tmp.release[0] = '5';
-		tmp.release[2] = '4';
-		memmove(&tmp.release[3], &tmp.release[4], sizeof(tmp.release) - 4);
+		tmp.release[2] = '1';
+		tmp.release[3] = '0';
 	}
 
 	if (copy_to_user(name, &tmp, sizeof(tmp)))
