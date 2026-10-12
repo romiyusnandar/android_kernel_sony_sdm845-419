@@ -16,6 +16,7 @@
 #include <linux/rbtree_latch.h>
 #include <linux/numa.h>
 #include <linux/wait.h>
+#include <linux/mutex.h>
 
 struct bpf_verifier_env;
 struct perf_event;
@@ -24,6 +25,8 @@ struct bpf_map;
 struct sock;
 struct seq_file;
 struct btf_type;
+struct vm_area_struct;
+struct poll_table_struct;
 #define BPF_F_ACCESS_MASK	(BPF_F_RDONLY | BPF_F_RDONLY_PROG | \
 				 BPF_F_WRONLY | BPF_F_WRONLY_PROG)
 
@@ -58,6 +61,9 @@ struct bpf_map_ops {
 	int (*map_check_btf)(const struct bpf_map *map,
 			     const struct btf_type *key_type,
 			     const struct btf_type *value_type);
+	int (*map_mmap)(struct bpf_map *map, struct vm_area_struct *vma);
+	unsigned int (*map_poll)(struct bpf_map *map, struct file *filp,
+			     struct poll_table_struct *pts);
 };
 
 struct bpf_map {
@@ -91,6 +97,9 @@ struct bpf_map {
 	atomic_t usercnt;
 	struct work_struct work;
 	char name[BPF_OBJ_NAME_LEN];
+	struct mutex freeze_mutex;
+	u64 writecnt;
+	bool frozen;
 };
 
 struct bpf_offload_dev;
@@ -164,6 +173,9 @@ enum bpf_arg_type {
 	ARG_PTR_TO_CTX,		/* pointer to context */
 	ARG_ANYTHING,		/* any (initialized) argument is ok */
 	ARG_PTR_TO_SOCKET,	/* pointer to bpf_sock (fullsock) */
+	ARG_PTR_TO_ALLOC_MEM,		/* the pointer to dynamically allocated bytes */
+	ARG_PTR_TO_ALLOC_MEM_OR_NULL,	/* pointer to dynamically allocated memory or NULL */
+	ARG_CONST_ALLOC_SIZE_OR_ZERO,	/* number of allocated bytes requested */
 };
 
 static inline bool map_value_has_spin_lock(const struct bpf_map *map)
@@ -191,6 +203,7 @@ enum bpf_return_type {
 	RET_VOID,			/* function doesn't return anything */
 	RET_PTR_TO_MAP_VALUE,		/* returns a pointer to map elem value */
 	RET_PTR_TO_MAP_VALUE_OR_NULL,	/* returns a pointer to map elem value or NULL */
+	RET_PTR_TO_ALLOC_MEM_OR_NULL,	/* returns a pointer to dynamically allocated memory or NULL */
 };
 
 /* eBPF function prototype used by verifier to allow BPF_CALLs from eBPF programs
@@ -243,6 +256,8 @@ enum bpf_reg_type {
 	PTR_TO_PACKET_END,	 /* skb->data + headlen */
 	PTR_TO_SOCKET,		 /* reg points to struct bpf_sock */
 	PTR_TO_SOCKET_OR_NULL,	 /* reg points to struct bpf_sock or NULL */
+	PTR_TO_MEM,		 /* reg points to valid memory region */
+	PTR_TO_MEM_OR_NULL,	 /* reg points to valid memory region or NULL */
 };
 
 /* The information passed from prog-specific *_is_valid_access
@@ -884,6 +899,13 @@ extern const struct bpf_func_proto bpf_sock_hash_update_proto;
 extern const struct bpf_func_proto bpf_get_current_cgroup_id_proto;
 
 extern const struct bpf_func_proto bpf_get_local_storage_proto;
+extern const struct bpf_map_ops ringbuf_map_ops;
+extern const struct bpf_func_proto bpf_ringbuf_output_proto;
+extern const struct bpf_func_proto bpf_ringbuf_reserve_proto;
+extern const struct bpf_func_proto bpf_ringbuf_submit_proto;
+extern const struct bpf_func_proto bpf_ringbuf_discard_proto;
+extern const struct bpf_func_proto bpf_ringbuf_query_proto;
+void bpf_map_inc_with_uref(struct bpf_map *map);
 
 /* Shared helpers among cBPF and eBPF. */
 void bpf_user_rnd_init_once(void);
