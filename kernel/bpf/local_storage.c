@@ -12,7 +12,7 @@ DEFINE_PER_CPU(void*, bpf_cgroup_storage);
 #ifdef CONFIG_CGROUP_BPF
 
 #define LOCAL_STORAGE_CREATE_FLAG_MASK					\
-	(BPF_F_NUMA_NODE | BPF_F_RDONLY | BPF_F_WRONLY)
+	(BPF_F_NUMA_NODE | BPF_F_ACCESS_MASK)
 
 struct bpf_cgroup_storage_map {
 	struct bpf_map map;

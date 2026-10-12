@@ -53,7 +53,7 @@
 #include <trace/events/xdp.h>
 
 #define DEV_CREATE_FLAG_MASK \
-	(BPF_F_NUMA_NODE | BPF_F_RDONLY | BPF_F_WRONLY | BPF_F_RDONLY_PROG)
+	(BPF_F_NUMA_NODE | BPF_F_ACCESS_MASK)
 
 #define DEV_MAP_BULK_SIZE 16
 struct xdp_bulk_queue {

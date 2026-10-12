@@ -24,6 +24,8 @@ struct bpf_map;
 struct sock;
 struct seq_file;
 struct btf_type;
+#define BPF_F_ACCESS_MASK	(BPF_F_RDONLY | BPF_F_RDONLY_PROG | \
+				 BPF_F_WRONLY | BPF_F_WRONLY_PROG)
 
 /* map is generic key/value storage optionally accesible by eBPF programs */
 struct bpf_map_ops {

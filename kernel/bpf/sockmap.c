@@ -46,7 +46,7 @@
 #include <linux/sched/signal.h>
 
 #define SOCK_CREATE_FLAG_MASK \
-	(BPF_F_NUMA_NODE | BPF_F_RDONLY | BPF_F_WRONLY)
+	(BPF_F_NUMA_NODE | BPF_F_ACCESS_MASK)
 
 struct bpf_sock_progs {
 	struct bpf_prog *bpf_tx_msg;

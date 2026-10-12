@@ -22,7 +22,8 @@
 #include "map_in_map.h"
 
 #define ARRAY_CREATE_FLAG_MASK \
-	(BPF_F_NUMA_NODE | BPF_F_RDONLY | BPF_F_WRONLY)
+	(BPF_F_NUMA_NODE | BPF_F_MMAPABLE | BPF_F_ACCESS_MASK | \
+	 BPF_F_PRESERVE_ELEMS | BPF_F_INNER_MAP)
 
 static void bpf_array_free_percpu(struct bpf_array *array)
 {
@@ -63,8 +64,12 @@ int array_map_alloc_check(union bpf_attr *attr)
 	if (attr->max_entries == 0 || attr->key_size != 4 ||
 	    attr->value_size == 0 ||
 	    attr->map_flags & ~ARRAY_CREATE_FLAG_MASK ||
-	    (percpu && numa_node != NUMA_NO_NODE))
+	    (percpu && numa_node != NUMA_NO_NODE)) {
+		pr_err("array_map_alloc_check failed: max_ent=%u key_sz=%u val_sz=%u flags=0x%x mask=0x%x percpu=%d numa=%d\n",
+		       attr->max_entries, attr->key_size, attr->value_size,
+		       attr->map_flags, ARRAY_CREATE_FLAG_MASK, percpu, numa_node);
 		return -EINVAL;
+	}
 
 	if (attr->value_size > KMALLOC_MAX_SIZE)
 		/* if value_size is bigger, the user space won't be able to

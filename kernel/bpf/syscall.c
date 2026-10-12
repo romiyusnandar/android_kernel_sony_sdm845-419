@@ -114,23 +114,33 @@ static struct bpf_map *find_and_alloc_map(union bpf_attr *attr)
 	struct bpf_map *map;
 	int err;
 
-	if (type >= ARRAY_SIZE(bpf_map_types))
+	if (type >= ARRAY_SIZE(bpf_map_types)) {
+		pr_err("find_and_alloc_map: type %u >= ARRAY_SIZE\n", type);
 		return ERR_PTR(-EINVAL);
+	}
 	type = array_index_nospec(type, ARRAY_SIZE(bpf_map_types));
 	ops = bpf_map_types[type];
-	if (!ops)
+	if (!ops) {
+		pr_err("find_and_alloc_map: no ops for type %u\n", type);
 		return ERR_PTR(-EINVAL);
+	}
 
 	if (ops->map_alloc_check) {
 		err = ops->map_alloc_check(attr);
-		if (err)
+		if (err) {
+			pr_err("find_and_alloc_map: map_alloc_check failed for '%s' (type %u): %d\n",
+			       attr->map_name, type, err);
 			return ERR_PTR(err);
+		}
 	}
 	if (attr->map_ifindex)
 		ops = &bpf_map_offload_ops;
 	map = ops->map_alloc(attr);
-	if (IS_ERR(map))
+	if (IS_ERR(map)) {
+		pr_err("find_and_alloc_map: map_alloc failed for '%s' (type %u): %ld\n",
+		       attr->map_name, type, PTR_ERR(map));
 		return map;
+	}
 	map->ops = ops;
 	map->map_type = type;
 	return map;
@@ -485,7 +495,7 @@ static int map_check_btf(const struct bpf_map *map, const struct btf *btf,
 	return ret;
 }
 
-#define BPF_MAP_CREATE_LAST_FIELD btf_value_type_id
+#define BPF_MAP_CREATE_LAST_FIELD map_extra
 /* called via syscall */
 static int map_create(union bpf_attr *attr)
 {
@@ -495,26 +505,39 @@ static int map_create(union bpf_attr *attr)
 	int err;
 
 	err = CHECK_ATTR(BPF_MAP_CREATE);
-	if (err)
+	if (err) {
+		pr_err("map_create: CHECK_ATTR failed for '%s'\n", attr->map_name);
 		return -EINVAL;
+	}
 
 	f_flags = bpf_get_file_flag(attr->map_flags);
-	if (f_flags < 0)
+	if (f_flags < 0) {
+		pr_err("map_create: bpf_get_file_flag failed for '%s' (flags=0x%x)\n",
+		       attr->map_name, attr->map_flags);
 		return f_flags;
+	}
 
 	if (numa_node != NUMA_NO_NODE &&
 	    ((unsigned int)numa_node >= nr_node_ids ||
-	     !node_online(numa_node)))
+	     !node_online(numa_node))) {
+		pr_err("map_create: numa_node invalid for '%s'\n", attr->map_name);
 		return -EINVAL;
+	}
 
 	/* find map type and init map: hashtable vs rbtree vs bloom vs ... */
 	map = find_and_alloc_map(attr);
-	if (IS_ERR(map))
+	if (IS_ERR(map)) {
+		pr_err("map_create: find_and_alloc_map failed for '%s': %ld\n",
+		       attr->map_name, PTR_ERR(map));
 		return PTR_ERR(map);
+	}
 
 	err = bpf_obj_name_cpy(map->name, attr->map_name);
-	if (err)
+	if (err) {
+		pr_err("map_create: bpf_obj_name_cpy failed for '%s': %d\n",
+		       attr->map_name, err);
 		goto free_map_nouncharge;
+	}
 
 	atomic_set(&map->refcnt, 1);
 	atomic_set(&map->usercnt, 1);
@@ -523,12 +546,16 @@ static int map_create(union bpf_attr *attr)
 		struct btf *btf;
 
 		if (!attr->btf_key_type_id || !attr->btf_value_type_id) {
+			pr_err("map_create: missing btf key or value type id for '%s'\n",
+			       attr->map_name);
 			err = -EINVAL;
 			goto free_map_nouncharge;
 		}
 
 		btf = btf_get_by_fd(attr->btf_fd);
 		if (IS_ERR(btf)) {
+			pr_err("map_create: btf_get_by_fd failed for '%s': %ld\n",
+			       attr->map_name, PTR_ERR(btf));
 			err = PTR_ERR(btf);
 			goto free_map_nouncharge;
 		}
@@ -536,6 +563,8 @@ static int map_create(union bpf_attr *attr)
 		err = map_check_btf(map, btf, attr->btf_key_type_id,
 				    attr->btf_value_type_id);
 		if (err) {
+			pr_err("map_create: map_check_btf failed for '%s': %d\n",
+			       attr->map_name, err);
 			btf_put(btf);
 			goto free_map_nouncharge;
 		}
@@ -546,19 +575,30 @@ static int map_create(union bpf_attr *attr)
 	}
 
 	err = security_bpf_map_alloc(map);
-	if (err)
+	if (err) {
+		pr_err("map_create: security_bpf_map_alloc failed for '%s': %d\n",
+		       attr->map_name, err);
 		goto free_map_nouncharge;
+	}
 
 	err = bpf_map_init_memlock(map);
-	if (err)
+	if (err) {
+		pr_err("map_create: bpf_map_init_memlock failed for '%s': %d\n",
+		       attr->map_name, err);
 		goto free_map_sec;
+	}
 
 	err = bpf_map_alloc_id(map);
-	if (err)
+	if (err) {
+		pr_err("map_create: bpf_map_alloc_id failed for '%s': %d\n",
+		       attr->map_name, err);
 		goto free_map;
+	}
 
 	err = bpf_map_new_fd(map, f_flags);
 	if (err < 0) {
+		pr_err("map_create: bpf_map_new_fd failed for '%s': %d\n",
+		       attr->map_name, err);
 		/* failed to allocate fd.
 		 * bpf_map_put_with_uref() is needed because the above
 		 * bpf_map_alloc_id() has published the map

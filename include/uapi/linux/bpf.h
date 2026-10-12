@@ -284,9 +284,24 @@ enum bpf_attach_type {
 /* Flag for stack_map, store build_id+offset instead of pointer */
 #define BPF_F_STACK_BUILD_ID	(1U << 5)
 
+/* Zero-initialize hash function seed */
+#define BPF_F_ZERO_SEED		(1U << 6)
+
 /* Flags for accessing BPF object from program side. */
 #define BPF_F_RDONLY_PROG	(1U << 7)
 #define BPF_F_WRONLY_PROG	(1U << 8)
+
+/* Clone map from listener for datapath nss */
+#define BPF_F_CLONE		(1U << 9)
+
+/* Enable memory-mapping BPF map */
+#define BPF_F_MMAPABLE		(1U << 10)
+
+/* Preserve array elements on fd close */
+#define BPF_F_PRESERVE_ELEMS	(1U << 11)
+
+/* Allow inner map creation with same flags */
+#define BPF_F_INNER_MAP		(1U << 12)
 
 enum bpf_stack_build_id_status {
 	/* user space need an empty entry to identify end of a trace */
@@ -325,6 +340,8 @@ union bpf_attr {
 		__u32	btf_fd;		/* fd pointing to a BTF type data */
 		__u32	btf_key_type_id;	/* BTF type_id of the key */
 		__u32	btf_value_type_id;	/* BTF type_id of the value */
+		__u32	btf_vmlinux_value_type_id;/* BTF type_id from vmlinux */
+		__u64	map_extra;		/* any per-map-type extra fields */
 	};
 
 	struct { /* anonymous struct used by BPF_MAP_*_ELEM commands */
