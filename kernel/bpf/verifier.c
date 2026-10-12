@@ -203,6 +203,11 @@ void bpf_verifier_vlog(struct bpf_verifier_log *log, const char *fmt,
 	WARN_ONCE(n >= BPF_VERIFIER_TMP_LOG_SIZE - 1,
 		  "verifier log line truncated - local buffer too short\n");
 
+	pr_err("bpf_verif: %s", log->kbuf);
+
+	if (!log->ubuf || !log->len_total)
+		return;
+
 	n = min(log->len_total - log->len_used - 1, n);
 	log->kbuf[n] = '\0';
 
@@ -221,9 +226,6 @@ __printf(2, 3) void bpf_verifier_log_write(struct bpf_verifier_env *env,
 {
 	va_list args;
 
-	if (!bpf_verifier_log_needed(&env->log))
-		return;
-
 	va_start(args, fmt);
 	bpf_verifier_vlog(&env->log, fmt, args);
 	va_end(args);
@@ -234,9 +236,6 @@ __printf(2, 3) static void verbose(void *private_data, const char *fmt, ...)
 {
 	struct bpf_verifier_env *env = private_data;
 	va_list args;
-
-	if (!bpf_verifier_log_needed(&env->log))
-		return;
 
 	va_start(args, fmt);
 	bpf_verifier_vlog(&env->log, fmt, args);
@@ -6465,6 +6464,10 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 	/* grab the mutex to protect few globals used by verifier */
 	mutex_lock(&bpf_verifier_lock);
 
+	pr_err("bpf_check: START prog='%s' type=%d insns=%u log_lvl=%u log_sz=%u\n",
+	       (*prog)->aux->name, (*prog)->type, (*prog)->len,
+	       attr->log_level, attr->log_size);
+
 	if (attr->log_level || attr->log_buf || attr->log_size) {
 		/* user requested verbose verifier output
 		 * and supplied buffer to store the verification trace
@@ -6476,8 +6479,11 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 		ret = -EINVAL;
 		/* log attributes have to be sane */
 		if (log->len_total < 128 || log->len_total > UINT_MAX >> 8 ||
-		    !log->level || !log->ubuf)
+		    !log->level || !log->ubuf) {
+			pr_err("bpf_check: invalid log params: lvl=%u ubuf=%px sz=%u\n",
+			       log->level, log->ubuf, log->len_total);
 			goto err_unlock;
+		}
 	}
 
 	env->strict_alignment = !!(attr->prog_flags & BPF_F_STRICT_ALIGNMENT);
@@ -6572,6 +6578,12 @@ err_release_maps:
 		release_maps(env);
 	*prog = env->prog;
 err_unlock:
+	if (ret < 0)
+		pr_err("bpf_check: FAILED prog='%s' type=%d ret=%d\n",
+		       env->prog->aux->name, env->prog->type, ret);
+	else
+		pr_err("bpf_check: PASSED prog='%s' type=%d\n",
+		       env->prog->aux->name, env->prog->type);
 	mutex_unlock(&bpf_verifier_lock);
 	vfree(env->insn_aux_data);
 err_free_env:
