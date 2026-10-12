@@ -667,8 +667,8 @@ struct bpf_map *bpf_map_get_with_uref(u32 ufd)
 }
 
 /* map_idr_lock should have been held */
-static struct bpf_map *bpf_map_inc_not_zero(struct bpf_map *map,
-					    bool uref)
+struct bpf_map *bpf_map_inc_not_zero(struct bpf_map *map,
+				     bool uref)
 {
 	int refold;
 

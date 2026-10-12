@@ -145,6 +145,8 @@ enum bpf_arg_type {
 	ARG_CONST_MAP_PTR,	/* const argument used as pointer to bpf_map */
 	ARG_PTR_TO_MAP_KEY,	/* pointer to stack used as map key */
 	ARG_PTR_TO_MAP_VALUE,	/* pointer to stack used as map value */
+	ARG_PTR_TO_UNINIT_MAP_VALUE,	/* pointer to valid memory used to store a map value */
+	ARG_PTR_TO_MAP_VALUE_OR_NULL,	/* pointer to stack used as map value or NULL */
 
 	/* the following constraints used to prototype bpf_memcmp() and other
 	 * functions that access data on eBPF program stack
@@ -161,7 +163,27 @@ enum bpf_arg_type {
 
 	ARG_PTR_TO_CTX,		/* pointer to context */
 	ARG_ANYTHING,		/* any (initialized) argument is ok */
+	ARG_PTR_TO_SOCKET,	/* pointer to bpf_sock (fullsock) */
 };
+
+static inline bool map_value_has_spin_lock(const struct bpf_map *map)
+{
+	return false;
+}
+
+static inline void copy_map_value(struct bpf_map *map, void *dst, const void *src)
+{
+	memcpy(dst, src, map->value_size);
+}
+
+static inline void copy_map_value_locked(struct bpf_map *map, void *dst, const void *src,
+					bool lock_src)
+{
+	memcpy(dst, src, map->value_size);
+}
+
+extern const struct bpf_map_ops sk_storage_map_ops;
+struct bpf_map *bpf_map_inc_not_zero(struct bpf_map *map, bool uref);
 
 /* type of values returned from helper functions */
 enum bpf_return_type {
@@ -219,6 +241,8 @@ enum bpf_reg_type {
 	PTR_TO_PACKET_META,	 /* skb->data - meta_len */
 	PTR_TO_PACKET,		 /* reg points to skb->data */
 	PTR_TO_PACKET_END,	 /* skb->data + headlen */
+	PTR_TO_SOCKET,		 /* reg points to struct bpf_sock */
+	PTR_TO_SOCKET_OR_NULL,	 /* reg points to struct bpf_sock or NULL */
 };
 
 /* The information passed from prog-specific *_is_valid_access

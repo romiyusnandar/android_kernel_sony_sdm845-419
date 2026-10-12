@@ -262,6 +262,8 @@ static const char * const reg_type_str[] = {
 	[PTR_TO_PACKET]		= "pkt",
 	[PTR_TO_PACKET_META]	= "pkt_meta",
 	[PTR_TO_PACKET_END]	= "pkt_end",
+	[PTR_TO_SOCKET]		= "sock",
+	[PTR_TO_SOCKET_OR_NULL]	= "sock_or_null",
 };
 
 static void print_liveness(struct bpf_verifier_env *env,
@@ -955,6 +957,8 @@ static bool is_spillable_regtype(enum bpf_reg_type type)
 	case PTR_TO_PACKET_META:
 	case PTR_TO_PACKET_END:
 	case CONST_PTR_TO_MAP:
+	case PTR_TO_SOCKET:
+	case PTR_TO_SOCKET_OR_NULL:
 		return true;
 	default:
 		return false;
@@ -1986,10 +1990,16 @@ static int check_func_arg(struct bpf_verifier_env *env, u32 regno,
 	}
 
 	if (arg_type == ARG_PTR_TO_MAP_KEY ||
-	    arg_type == ARG_PTR_TO_MAP_VALUE) {
+	    arg_type == ARG_PTR_TO_MAP_VALUE ||
+	    arg_type == ARG_PTR_TO_UNINIT_MAP_VALUE ||
+	    arg_type == ARG_PTR_TO_MAP_VALUE_OR_NULL) {
 		expected_type = PTR_TO_STACK;
-		if (!type_is_pkt_pointer(type) && type != PTR_TO_MAP_VALUE &&
-		    type != expected_type)
+		if (register_is_null(reg) &&
+		    arg_type == ARG_PTR_TO_MAP_VALUE_OR_NULL)
+			/* final test in check_stack_boundary() */;
+		else if (!type_is_pkt_pointer(type) &&
+			 type != PTR_TO_MAP_VALUE &&
+			 type != expected_type)
 			goto err_type;
 	} else if (arg_type == ARG_CONST_SIZE ||
 		   arg_type == ARG_CONST_SIZE_OR_ZERO) {
@@ -2007,6 +2017,10 @@ static int check_func_arg(struct bpf_verifier_env *env, u32 regno,
 		err = check_ctx_reg(env, reg, regno);
 		if (err < 0)
 			return err;
+	} else if (arg_type == ARG_PTR_TO_SOCKET) {
+		expected_type = PTR_TO_SOCKET;
+		if (type != expected_type)
+			goto err_type;
 	} else if (arg_type_is_mem_ptr(arg_type)) {
 		expected_type = PTR_TO_STACK;
 		/* One exception here. In case function allows for NULL to be
@@ -2046,7 +2060,10 @@ static int check_func_arg(struct bpf_verifier_env *env, u32 regno,
 		err = check_helper_mem_access(env, regno,
 					      meta->map_ptr->key_size, false,
 					      NULL);
-	} else if (arg_type == ARG_PTR_TO_MAP_VALUE) {
+	} else if (arg_type == ARG_PTR_TO_MAP_VALUE ||
+		   (arg_type == ARG_PTR_TO_MAP_VALUE_OR_NULL &&
+		    !register_is_null(reg)) ||
+		   arg_type == ARG_PTR_TO_UNINIT_MAP_VALUE) {
 		/* bpf_map_xxx(..., map_ptr, ..., value) call:
 		 * check [value, value + map->value_size) validity
 		 */
@@ -2179,6 +2196,11 @@ static int check_map_func_compatibility(struct bpf_verifier_env *env,
 		if (func_id != BPF_FUNC_sk_select_reuseport)
 			goto error;
 		break;
+	case BPF_MAP_TYPE_SK_STORAGE:
+		if (func_id != BPF_FUNC_sk_storage_get &&
+		    func_id != BPF_FUNC_sk_storage_delete)
+			goto error;
+		break;
 	default:
 		break;
 	}
@@ -2233,6 +2255,11 @@ static int check_map_func_compatibility(struct bpf_verifier_env *env,
 		break;
 	case BPF_FUNC_sk_select_reuseport:
 		if (map->map_type != BPF_MAP_TYPE_REUSEPORT_SOCKARRAY)
+			goto error;
+		break;
+	case BPF_FUNC_sk_storage_get:
+	case BPF_FUNC_sk_storage_delete:
+		if (map->map_type != BPF_MAP_TYPE_SK_STORAGE)
 			goto error;
 		break;
 	default:
@@ -3061,9 +3088,11 @@ static int adjust_ptr_min_max_vals(struct bpf_verifier_env *env,
 			dst);
 		return -EACCES;
 	}
-	if (ptr_reg->type == PTR_TO_PACKET_END) {
-		verbose(env, "R%d pointer arithmetic on PTR_TO_PACKET_END prohibited\n",
-			dst);
+	if (ptr_reg->type == PTR_TO_PACKET_END ||
+	    ptr_reg->type == PTR_TO_SOCKET ||
+	    ptr_reg->type == PTR_TO_SOCKET_OR_NULL) {
+		verbose(env, "R%d pointer arithmetic on %s prohibited\n",
+			dst, reg_type_str[ptr_reg->type]);
 		return -EACCES;
 	}
 
@@ -4920,6 +4949,8 @@ static bool regsafe(struct bpf_verifier_env *env, struct bpf_reg_state *rold,
 	case PTR_TO_CTX:
 	case CONST_PTR_TO_MAP:
 	case PTR_TO_PACKET_END:
+	case PTR_TO_SOCKET:
+	case PTR_TO_SOCKET_OR_NULL:
 		/* Only valid matches are exact, which memcmp() above
 		 * would have accepted
 		 */
