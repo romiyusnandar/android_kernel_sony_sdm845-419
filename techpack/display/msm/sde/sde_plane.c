@@ -2458,10 +2458,17 @@ static int _sde_atomic_check_decimation_scaler(struct drm_plane_state *state,
 
 	/* check decimated source width */
 	} else if (scaler_src_w > max_linewidth) {
-		SDE_ERROR_PLANE(psde,
-			"invalid src w:%u, deci w:%u, line w:%u, rot: %d\n",
-			src->w, src_deci_w, max_linewidth, inline_rotation);
-		ret = -E2BIG;
+		pr_warn_ratelimited("[sde plane] clamping src w:%u (scaler_src_w:%u) to line w:%u\n",
+			src->w, scaler_src_w, max_linewidth);
+		if (inline_rotation) {
+			src->h = max_linewidth;
+			src_deci_h = max_linewidth;
+			scaler_src_w = max_linewidth;
+		} else {
+			src->w = max_linewidth;
+			src_deci_w = max_linewidth;
+			scaler_src_w = max_linewidth;
+		}
 
 	/* check max scaler capability */
 	} else if (((scaler_src_w * max_upscale) < dst->w) ||
@@ -2470,13 +2477,9 @@ static int _sde_atomic_check_decimation_scaler(struct drm_plane_state *state,
 			< scaler_src_w) ||
 		(mult_frac(dst->h, max_downscale_num_h, max_downscale_denom_h)
 			< scaler_src_h)) {
-		SDE_ERROR_PLANE(psde,
-			"too much scaling %ux%u->%ux%u rot:%d dwn:%d/%d %d/%d\n",
-			scaler_src_w, scaler_src_h, dst->w, dst->h,
-			inline_rotation, max_downscale_num_w,
-			max_downscale_denom_w, max_downscale_num_h,
-			max_downscale_denom_h);
-		ret = -E2BIG;
+		pr_warn_ratelimited("[sde plane] too much scaling %ux%u->%ux%u rot:%d\n",
+			scaler_src_w, scaler_src_h, dst->w, dst->h, inline_rotation);
+
 
 	/* check inline pre-downscale support */
 	} else if (inline_rotation && _sde_atomic_check_pre_downscale(psde,
